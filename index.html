@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Guía Completa PostgreSQL para Desarrolladores</title>
+    <style>
+        body {
+            font-family: system-ui, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 { color: #326690; margin: 20px 0; }
+        h2 { color: #1a4971; margin: 30px 0 15px; }
+        h3 { color: #0F4C81; }
+        pre {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            border: 1px solid #e9ecef;
+        }
+        .nota {
+            background: #e1f5fe;
+            padding: 15px;
+            border-left: 4px solid #03a9f4;
+            margin: 15px 0;
+        }
+        .advertencia {
+            background: #fff3e0;
+            padding: 15px;
+            border-left: 4px solid #ff9800;
+            margin: 15px 0;
+        }
+        code { color: #d63384; }
+    </style>
+</head>
+<body>
+    <h1>PostgreSQL: Manual Completo para Desarrolladores</h1>
+
+    <h2>Fundamentos de PostgreSQL</h2>
+
+    <h3>1. Instalación y Configuración Básica</h3>
+    <pre>
+# Ubuntu/Debian
+sudo apt update
+sudo apt install postgresql postgresql-contrib
+
+# Fedora
+sudo dnf install postgresql-server postgresql-contrib
+
+# Iniciar servicio
+sudo systemctl start postgresql
+sudo systemctl enable postgresql
+
+# Acceder a PostgreSQL
+sudo -u postgres psql
+</pre>
+
+    <h3>2. Comandos Esenciales de psql</h3>
+    <pre>
+\l                  -- Listar bases de datos
+\c nombre_bd        -- Conectar a base de datos
+\dt                 -- Listar tablas
+\d nombre_tabla     -- Describir tabla
+\du                 -- Listar usuarios
+\timing            -- Activar medición de tiempo
+\x                 -- Cambiar formato de salida
+\h                 -- Ayuda de comandos SQL
+\?                 -- Ayuda de comandos psql
+\q                 -- Salir
+</pre>
+
+    <h3>3. Gestión de Bases de Datos</h3>
+    <pre>
+-- Crear base de datos
+CREATE DATABASE nombre_bd;
+
+-- Crear base de datos con parámetros específicos
+CREATE DATABASE nombre_bd
+    WITH 
+    OWNER = usuario
+    ENCODING = 'UTF8'
+    LC_COLLATE = 'es_ES.UTF-8'
+    LC_CTYPE = 'es_ES.UTF-8'
+    TEMPLATE = template0;
+
+-- Eliminar base de datos
+DROP DATABASE IF EXISTS nombre_bd;
+</pre>
+
+    <h3>4. Tipos de Datos Fundamentales</h3>
+    <pre>
+-- Numéricos
+SMALLINT            -- 2 bytes, -32768 a +32767
+INTEGER             -- 4 bytes, -2147483648 a +2147483647
+BIGINT              -- 8 bytes, muy grandes
+DECIMAL(p,s)        -- precisión exacta
+NUMERIC(p,s)        -- precisión exacta
+REAL                -- 4 bytes, precisión variable
+DOUBLE PRECISION    -- 8 bytes, precisión variable
+SERIAL              -- autoincremental
+
+-- Texto
+CHAR(n)             -- longitud fija
+VARCHAR(n)          -- longitud variable con límite
+TEXT                -- longitud variable sin límite
+
+-- Fecha/Hora
+DATE                -- solo fecha
+TIME                -- solo hora
+TIMESTAMP          -- fecha y hora
+INTERVAL           -- intervalo de tiempo
+
+-- Otros tipos importantes
+BOOLEAN            -- true/false
+UUID               -- identificador único universal
+JSON/JSONB         -- datos JSON
+ARRAY              -- array de cualquier tipo
+</pre>
+
+    <h3>5. Creación de Tablas Avanzada</h3>
+    <pre>
+CREATE TABLE empleados (
+    id SERIAL PRIMARY KEY,
+    nombre VARCHAR(100) NOT NULL,
+    email VARCHAR(255) UNIQUE,
+    fecha_contratacion DATE DEFAULT CURRENT_DATE,
+    salario DECIMAL(10,2),
+    departamento_id INTEGER REFERENCES departamentos(id),
+    datos_extra JSONB,
+    CONSTRAINT salario_positivo CHECK (salario > 0)
+);
+
+-- Tabla con herencia
+CREATE TABLE empleados_tiempo_completo (
+    horas_semanales INTEGER DEFAULT 40
+) INHERITS (empleados);
+
+-- Crear tabla temporal
+CREATE TEMPORARY TABLE temp_empleados (
+    LIKE empleados INCLUDING ALL
+);
+</pre>
+
+    <h3>6. Modificación de Tablas</h3>
+    <pre>
+-- Agregar columna
+ALTER TABLE empleados ADD COLUMN telefono VARCHAR(20);
+
+-- Modificar columna
+ALTER TABLE empleados ALTER COLUMN telefono TYPE VARCHAR(30);
+
+-- Agregar restricción
+ALTER TABLE empleados ADD CONSTRAINT uk_email UNIQUE (email);
+
+-- Eliminar restricción
+ALTER TABLE empleados DROP CONSTRAINT uk_email;
+
+-- Renombrar tabla
+ALTER TABLE empleados RENAME TO personal;
+</pre>
+
+    <div class="nota">
+        <strong>Nota:</strong> Las modificaciones de estructura en tablas grandes pueden bloquear la tabla. Considerar ventanas de mantenimiento.
+    </div>
+
+    <h3>7. Inserción de Datos Avanzada</h3>
+    <pre>
+-- Inserción básica
+INSERT INTO empleados (nombre, email) VALUES ('Juan', 'juan@email.com');
+
+-- Inserción múltiple
+INSERT INTO empleados (nombre, email)
+VALUES 
+    ('Ana', 'ana@email.com'),
+    ('Pedro', 'pedro@email.com')
+RETURNING id, nombre;
+
+-- Insertar datos desde otra tabla
+INSERT INTO empleados_backup
+SELECT * FROM empleados WHERE fecha_contratacion < '2023-01-01';
+
+-- Insertar o actualizar (upsert)
+INSERT INTO empleados (id, nombre, email)
+VALUES (1, 'Juan', 'juan@email.com')
+ON CONFLICT (id) DO UPDATE 
+SET nombre = EXCLUDED.nombre, email = EXCLUDED.email;
+</pre>
+
+    <h3>8. Consultas Avanzadas</h3>
+    <pre>
+-- Subconsultas correlacionadas
+SELECT 
+    d.nombre as departamento,
+    (SELECT COUNT(*) FROM empleados e WHERE e.departamento_id = d.id) as total_empleados
+FROM departamentos d;
+
+-- Window Functions
+SELECT 
+    nombre,
+    salario,
+    AVG(salario) OVER (PARTITION BY departamento_id) as promedio_departamento,
+    RANK() OVER (ORDER BY salario DESC) as ranking_salario
+FROM empleados;
+
+-- Common Table Expressions (CTE)
+WITH empleados_departamento AS (
+    SELECT 
+        departamento_id,
+        COUNT(*) as total,
+        AVG(salario) as promedio_salario
+    FROM empleados
+    GROUP BY departamento_id
+)
+SELECT 
+    d.nombre,
+    ed.total,
+    ed.promedio_salario
+FROM departamentos d
+JOIN empleados_departamento ed ON d.id = ed.departamento_id;
+
+-- LATERAL JOIN
+SELECT 
+    d.nombre as departamento,
+    e.nombre as empleado,
+    e.salario
+FROM departamentos d
+CROSS JOIN LATERAL (
+    SELECT nombre, salario 
+    FROM empleados 
+    WHERE departamento_id = d.id 
+    ORDER BY salario DESC 
+    LIMIT 3
+) e;
+</pre>
+
+    <h3>9. Índices y Optimización</h3>
+    <pre>
+-- Tipos de índices
+CREATE INDEX idx_empleados_nombre ON empleados(nombre);
+CREATE UNIQUE INDEX idx_empleados_email ON empleados(email);
+CREATE INDEX idx_empleados_departamento ON empleados(departamento_id);
+
+-- Índice parcial
+CREATE INDEX idx_empleados_activos ON empleados(fecha_contratacion) 
+WHERE activo = true;
+
+-- Índice multicolumna
+CREATE INDEX idx_empleados_busqueda 
+ON empleados(departamento_id, fecha_contratacion, nombre);
+
+-- Índice expresión
+CREATE INDEX idx_empleados_email_lower 
+ON empleados(LOWER(email));
+
+-- Índice JSONB
+CREATE INDEX idx_datos_extra 
+ON empleados USING GIN (datos_extra);
+</pre>
+
+    <div class="nota">
+        <strong>Optimización:</strong> Usar EXPLAIN ANALYZE para verificar el plan de ejecución:
+        <pre>
+EXPLAIN ANALYZE
+SELECT * FROM empleados 
+WHERE departamento_id = 1 
+  AND fecha_contratacion > '2023-01-01';
+        </pre>
+    </div>
+
+    <h3>10. Funciones y Procedimientos</h3>
+    <pre>
+-- Función simple
+CREATE OR REPLACE FUNCTION calcular_salario_anual(salario_mensual DECIMAL)
+RETURNS DECIMAL AS $$
+BEGIN
+    RETURN salario_mensual * 12;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Función con manejo de errores
+CREATE OR REPLACE FUNCTION actualizar_salario(
+    p_empleado_id INTEGER,
+    p_nuevo_salario DECIMAL
+)
+RETURNS BOOLEAN AS $$
+DECLARE
+    v_salario_actual DECIMAL;
+BEGIN
+    -- Obtener salario actual
+    SELECT salario INTO v_salario_actual
+    FROM empleados
+    WHERE id = p_empleado_id;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Empleado ID % no encontrado', p_empleado_id;
+    END IF;
+
+    IF p_nuevo_salario < 0 THEN
+        RAISE EXCEPTION 'El salario no puede ser negativo';
+    END IF;
+
+    -- Actualizar salario
+    UPDATE empleados
+    SET salario = p_nuevo_salario
+    WHERE id = p_empleado_id;
+
+    RETURN TRUE;
+
+EXCEPTION
+    WHEN OTHERS THEN
+        RAISE NOTICE 'Error: %', SQLERRM;
+        RETURN FALSE;
+END;
+$$ LANGUAGE plpgsql;
+</pre>
+
+    <h3>11. Triggers</h3>
+    <pre>
+-- Función para el trigger
+CREATE OR REPLACE FUNCTION actualizar_fecha_modificacion()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.fecha_modificacion = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Crear trigger
+CREATE TRIGGER tr_actualizar_fecha
+    BEFORE UPDATE ON empleados
+    FOR EACH ROW
+    EXECUTE FUNCTION actualizar_fecha_modificacion();
+
+-- Trigger con condiciones
+CREATE OR REPLACE FUNCTION validar_salario()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.salario < 0 THEN
+        RAISE EXCEPTION 'El salario no puede ser negativo';
+    END IF;
+
+    IF NEW.salario > OLD.salario * 2 THEN
+        RAISE EXCEPTION 'El aumento no puede ser mayor al 100%';
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER tr_validar_salario
+    BEFORE UPDATE OF salario ON empleados
+    FOR EACH ROW
+    EXECUTE FUNCTION validar_salario();
+</pre>
+
+    <h3>12. Transacciones y Control de Concurrencia</h3>
+    <pre>
+-- Transacción básica
+BEGIN;
+UPDATE cuentas SET saldo = saldo - 100 WHERE id = 1;
+UPDATE cuentas SET saldo = saldo + 100 WHERE id = 2;
+COMMIT;
+
+-- Control de transacciones
+BEGIN;
+SAVEPOINT punto1;
+
+UPDATE inventario SET stock = stock - 1 WHERE id = 1;
+-- Si algo sale mal
+ROLLBACK TO punto1;
+
+-- Si todo está bien
+COMMIT;
+
+-- Niveles de aislamiento
+BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+-- operaciones
+COMMIT;
+</pre>
+
+    <div class="advertencia">
+        <strong>Importante:</strong> Siempre usar transacciones para operaciones que deben ser atómicas.
+    </div>
+
+    <h3>13. Seguridad y Permisos</h3>
+    <pre>
+-- Crear rol
+CREATE ROLE app_read WITH LOGIN PASSWORD 'secure123';
+
+-- Asignar permisos
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO app_read;
+GRANT USAGE ON SCHEMA public TO app_read;
+
+-- Permisos específicos
+GRANT SELECT, INSERT, UPDATE ON empleados TO app_write;
+GRANT USAGE, SELECT ON SEQUENCE empleados_id_seq TO app_write;
+
+-- Revocar permisos
+REVOKE ALL ON empleados FROM PUBLIC;
+
+-- Políticas de seguridad a nivel de fila
+CREATE POLICY empleados_departamento ON empleados
+    FOR SELECT
+    USING (departamento_id = current_setting('app.departamento_id')::integer);
+
+ALTER TABLE empleados ENABLE ROW LEVEL SECURITY;
+</pre>
+
+    <h3>14. Backup y Restauración</h3>
+    <pre>
+-- Backup completo
+pg_dump dbname > backup.sql
+
+-- Backup específico de una tabla
+pg_dump -t tabla dbname > tabla_backup.sql
+
+-- Backup en formato personalizado
+pg_dump -Fc dbname > backup.dump
+
+-- Restaurar backup
+psql dbname < backup.sql
+
+-- Restaurar backup formato personalizado
+pg_restore -d dbname backup.dump
+</pre>
+
+    <h3>15. Mantenimiento</h3>
+    <pre>
+-- Análisis de tabla
+ANALYZE empleados;
+
+-- Vacuum completo
+VACUUM FULL empleados;
+
+-- Recolección de estadísticas
+ANALYZE VERBOSE empleados;
+
+-- Reindexar
+REINDEX TABLE empleados;
+
+-- Truncar tabla
+TRUNCATE TABLE logs;
+</pre>
+
+    <div class="nota">
+        <strong>Mejores Prácticas de Mantenimiento:</strong>
+        <ul>
+            <li>Realizar VACUUM regularmente en tablas con muchas actualizaciones/eliminaciones</li>
+            <li>Mantener estadísticas actualizadas para el optimizador</li>
+            <li>Monitorear el crecimiento de las tablas</li>
+            <li>Implementar particionamiento para tablas muy grandes</li>
+            <li>Configurar autovacuum apropiadamente</li>
+        </ul>
+    </div>
+
+</body>
+</html>
